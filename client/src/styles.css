@@ -1,0 +1,73 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: "IBM Plex Sans", "SF Pro Text", "Segoe UI", sans-serif;
+  font-size: 16px;
+  --bg: #111214;
+  --surface: #171a1f;
+  --card: #1d2026;
+  --text: #eceff3;
+  --muted: #9ba3af;
+  --border: #2e3440;
+  --accent: #5f718a;
+  --accent-contrast: #0a0a0a;
+  --panel-padding: 1.5rem;
+  --panel-padding-lg: 2rem;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+}
+
+@keyframes start-pop {
+  0% {
+    transform: scale(0.985);
+    opacity: 0.85;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-start-pop {
+  animation: start-pop 220ms ease-out;
+}
+
+:root[data-text-scale='sm'] {
+  font-size: 14px;
+}
+
+:root[data-text-scale='md'] {
+  font-size: 16px;
+}
+
+:root[data-text-scale='lg'] {
+  font-size: 18px;
+}
+
+:root[data-density='compact'] {
+  --panel-padding: 1rem;
+  --panel-padding-lg: 1.25rem;
+}
+
+:root[data-density='comfortable'] {
+  --panel-padding: 1.5rem;
+  --panel-padding-lg: 2rem;
+}
+
+:root[data-reduce-motion='true'] *,
+:root[data-reduce-motion='true'] *::before,
+:root[data-reduce-motion='true'] *::after {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}

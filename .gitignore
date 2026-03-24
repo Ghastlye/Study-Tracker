@@ -1,0 +1,5 @@
+node_modules
+*.log
+study-tracker.db
+client/dist
+.DS_Store
