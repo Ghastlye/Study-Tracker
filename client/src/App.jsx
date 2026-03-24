@@ -37,6 +37,15 @@ const THEME_ACCENTS = {
   brown: '#8c5a3c',
 };
 
+const THEME_FAVICONS = {
+  moonstone: '/favicon-moonstone.png',
+  tangerine: '/favicon-tangerine.png',
+  raspberry: '/favicon-raspberry.png',
+  blue: '/favicon-blue.png',
+  green: '/favicon-green.png',
+  brown: '/favicon-brown.png',
+};
+
 function formatLocalDate(date) {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -220,6 +229,23 @@ function applyAppearance(preferences) {
   root.style.setProperty('--text', '#eceff3');
   root.style.setProperty('--muted', '#9ba3af');
   root.style.setProperty('--border', '#2e3440');
+}
+
+function applyFavicon(themeKey) {
+  if (typeof document === 'undefined') return;
+  const href = THEME_FAVICONS[themeKey] || THEME_FAVICONS.moonstone;
+  let link = document.querySelector("link#app-favicon");
+  if (!link) {
+    link = document.querySelector("link[rel='icon']");
+  }
+  if (!link) {
+    link = document.createElement('link');
+    link.setAttribute('rel', 'icon');
+    link.setAttribute('type', 'image/png');
+    link.setAttribute('id', 'app-favicon');
+    document.head.appendChild(link);
+  }
+  link.setAttribute('href', `${href}?theme=${encodeURIComponent(themeKey || 'moonstone')}`);
 }
 
 function emptyStats() {
@@ -416,6 +442,7 @@ export default function App() {
 
   useEffect(() => {
     applyAppearance(preferences);
+    applyFavicon(preferences.theme);
     localStorage.setItem(LOCAL_PREFERENCES_KEY, JSON.stringify(preferences));
     localStorage.setItem('study_mode', preferences.mode);
     localStorage.setItem('study_theme', preferences.theme);
