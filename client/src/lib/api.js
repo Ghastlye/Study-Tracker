@@ -1,4 +1,40 @@
-const API_BASE = 'http://localhost:4000/api';
+function normalizeApiBaseUrl(baseUrl) {
+  const trimmed = String(baseUrl || '').trim();
+  if (!trimmed) return '';
+
+  const withoutTrailingSlash = trimmed.replace(/\/+$/, '');
+  if (withoutTrailingSlash.endsWith('/api')) {
+    return withoutTrailingSlash;
+  }
+  return `${withoutTrailingSlash}/api`;
+}
+
+function resolveApiBaseUrl() {
+  const envBase = normalizeApiBaseUrl(import.meta.env.VITE_API_BASE_URL);
+  if (envBase) return envBase;
+  if (import.meta.env.DEV) return 'http://localhost:4000/api';
+  return '';
+}
+
+function resolveApiHostLabel(apiBaseUrl) {
+  if (!apiBaseUrl) {
+    return 'configured API host';
+  }
+  if (apiBaseUrl.startsWith('/')) {
+    if (typeof window !== 'undefined' && window.location?.origin) {
+      return window.location.origin;
+    }
+    return 'this site';
+  }
+  try {
+    return new URL(apiBaseUrl).origin;
+  } catch {
+    return apiBaseUrl;
+  }
+}
+
+const API_BASE = resolveApiBaseUrl();
+export const API_HOST_LABEL = resolveApiHostLabel(API_BASE);
 let authFailureHandler = null;
 
 function getToken() {
@@ -24,6 +60,13 @@ async function parseResponseData(response, responseType) {
 }
 
 async function request(path, options = {}, responseType = 'json') {
+  if (!API_BASE) {
+    throw createApiError('Missing VITE_API_BASE_URL for production build', {
+      code: 'HTTP',
+      recoverable: false,
+    });
+  }
+
   const token = getToken();
   const hasFormDataBody = typeof FormData !== 'undefined' && options.body instanceof FormData;
   let response;
@@ -37,7 +80,7 @@ async function request(path, options = {}, responseType = 'json') {
       ...options,
     });
   } catch {
-    throw createApiError('Cannot reach server at localhost:4000', {
+    throw createApiError(`Cannot reach server at ${API_HOST_LABEL}`, {
       code: 'NETWORK',
       recoverable: true,
     });
@@ -90,6 +133,10 @@ export const api = {
     request(`/sessions/${id}`, {
       method: 'PUT',
       body: JSON.stringify(payload),
+    }),
+  deleteSession: (id) =>
+    request(`/sessions/${id}`, {
+      method: 'DELETE',
     }),
   settings: () => request('/settings'),
   updateSettings: (payload) =>

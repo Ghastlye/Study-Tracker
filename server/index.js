@@ -7,10 +7,16 @@ import db from './db.js';
 const app = express();
 const PORT = process.env.PORT || 4000;
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
+const WEB_APP_URL = String(process.env.WEB_APP_URL || '').trim() || 'http://localhost:5173';
+const configuredCorsOrigins = String(process.env.CORS_ORIGIN || '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
 const MODES = ['dark', 'light'];
 const THEMES = ['moonstone', 'tangerine', 'raspberry', 'blue', 'green', 'brown'];
 const SUBJECT_COLORS = ['slate', 'blue', 'green', 'brown', 'orange', 'pink', 'purple', 'teal', 'red'];
+const FALLBACK_SUBJECT_COLORS = ['blue', 'green', 'orange', 'pink', 'purple', 'teal', 'red', 'brown', 'slate'];
 const TEXT_SCALES = ['sm', 'md', 'lg'];
 const DENSITIES = ['comfortable', 'compact'];
 const TIMER_MODES = ['focus', 'pomodoro'];
@@ -33,11 +39,15 @@ const DEFAULT_PREFERENCES = {
   keyboardShortcuts: true,
 };
 
-app.use(cors());
+app.use(
+  cors({
+    origin: configuredCorsOrigins.length > 0 ? configuredCorsOrigins : true,
+  })
+);
 app.use(express.json({ limit: '2mb' }));
 
 app.get('/', (_req, res) => {
-  res.type('text/plain').send('Study Tracker API is running. Open http://localhost:5173 for the web app.');
+  res.type('text/plain').send(`Study Tracker API is running. Open ${WEB_APP_URL} for the web app.`);
 });
 
 app.get('/api/health', (_req, res) => {
@@ -245,6 +255,22 @@ function normalizeTheme(themeInput) {
 
 function normalizeSubjectColor(colorInput) {
   return SUBJECT_COLORS.includes(colorInput) ? colorInput : 'slate';
+}
+
+function hashString(input) {
+  const value = String(input || '');
+  let hash = 0;
+  for (let i = 0; i < value.length; i += 1) {
+    hash = (hash * 31 + value.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash);
+}
+
+function resolveSubjectColor(subjectKey, savedColor) {
+  if (subjectKey === 'general') return 'slate';
+  if (SUBJECT_COLORS.includes(savedColor)) return savedColor;
+  const index = hashString(subjectKey) % FALLBACK_SUBJECT_COLORS.length;
+  return FALLBACK_SUBJECT_COLORS[index];
 }
 
 function isValidTimeZone(timezone) {
@@ -1105,6 +1131,21 @@ app.put('/api/sessions/:id', auth, (req, res) => {
   return res.json({ session: updated });
 });
 
+app.delete('/api/sessions/:id', auth, (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id < 1) {
+    return res.status(400).json({ error: 'Invalid session id' });
+  }
+
+  const existing = db.prepare('SELECT id FROM sessions WHERE id = ? AND user_id = ?').get(id, req.user.id);
+  if (!existing) {
+    return res.status(404).json({ error: 'Session not found' });
+  }
+
+  db.prepare('DELETE FROM sessions WHERE id = ? AND user_id = ?').run(id, req.user.id);
+  return res.json({ ok: true });
+});
+
 app.get('/api/stats', auth, (req, res) => {
   const config = getRangeConfig(req.query.range, req.query.cursor);
   const startIso = config.start.toISOString();
@@ -1241,7 +1282,7 @@ app.get('/api/stats', auth, (req, res) => {
     return {
       subjectId: match?.id ?? null,
       subject: match?.name || row.subjectLabel,
-      color: normalizeSubjectColor(match?.color),
+      color: resolveSubjectColor(row.subjectKey, match?.color),
       totalSeconds: row.total,
       percent: Number(((row.total / denominator) * 100).toFixed(1)),
     };
@@ -1253,7 +1294,7 @@ app.get('/api/stats', auth, (req, res) => {
     const entry = {
       subjectId: match?.id ?? null,
       subject: match?.name || row.subjectLabel,
-      color: normalizeSubjectColor(match?.color),
+      color: resolveSubjectColor(row.subjectKey, match?.color),
       totalSeconds: row.total,
     };
     const existing = barSubjectMap.get(row.bucketKey);
@@ -1297,6 +1338,12 @@ app.get('/api/stats', auth, (req, res) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
+const isServerlessRuntime = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+
+if (!isServerlessRuntime) {
+  app.listen(PORT, () => {
+    console.log(`Study Tracker API listening on port ${PORT}`);
+  });
+}
+
+export default app;

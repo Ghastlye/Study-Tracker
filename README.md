@@ -81,7 +81,14 @@ A minimalist, dark-mode study tracker focused only on study time.
 npm install
 ```
 
-2. Start backend:
+2. Configure environment variables:
+
+```bash
+cp server/.env.example server/.env
+cp client/.env.example client/.env
+```
+
+3. Start backend:
 
 ```bash
 npm run dev:server
@@ -93,19 +100,28 @@ If file-watch mode is preferred (and your OS watcher limits allow it):
 npm run dev:watch --workspace server
 ```
 
-3. In another terminal, start frontend:
+4. In another terminal, start frontend:
 
 ```bash
 npm run dev:client
 ```
 
-4. Open:
+5. Open:
 - Frontend: http://localhost:5173
 - Backend: http://localhost:4000
+
+## Production / Vercel
+- Deploy the backend as its own Node service (Render/Railway/Fly.io/etc.) and set:
+  - `JWT_SECRET`
+  - `CORS_ORIGIN` (your Vercel frontend URL)
+  - `WEB_APP_URL` (your Vercel frontend URL)
+  - `DATABASE_PATH` (persistent storage path for SQLite)
+- Deploy the frontend to Vercel and set this environment variable:
+  - `VITE_API_BASE_URL=https://your-backend-domain.com`
 
 ## Notes
 - SQLite DB file is created in the server folder as `server/study-tracker.db`.
 - For production, set `JWT_SECRET` in environment variables.
-- If the API is offline, auth/dashboard actions show `Cannot reach server at localhost:4000`.
+- If the API is offline, auth/dashboard actions show `Cannot reach server at <api-host>`.
 - Active timer state persists in local storage key `study_active_timer_v1`.
 - Failed stop-saves are queued in `study_session_queue_v1` and retried automatically.

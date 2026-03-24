@@ -5,7 +5,7 @@ import StatsCard from './components/StatsCard';
 import SubjectStatsCard from './components/SubjectStatsCard';
 import SessionList from './components/SessionList';
 import SettingsModal from './components/SettingsModal';
-import { api, clearToken, setAuthFailureHandler, setToken } from './lib/api';
+import { API_HOST_LABEL, api, clearToken, setAuthFailureHandler, setToken } from './lib/api';
 import { SUBJECT_COLOR_PALETTE } from './lib/subjectVisuals';
 
 const LOCAL_PREFERENCES_KEY = 'study_preferences_v3';
@@ -276,7 +276,7 @@ function getDateLocale(preferences) {
 
 function toUserErrorMessage(error, fallback = 'Request failed') {
   if (error?.code === 'NETWORK') {
-    return 'Cannot reach server at localhost:4000';
+    return `Cannot reach server at ${API_HOST_LABEL}`;
   }
   if (error?.code === 'AUTH' || error?.status === 401) {
     return 'Session expired. Please log in again';
@@ -320,6 +320,9 @@ export default function App() {
   const [statsCursor, setStatsCursor] = useState(() => formatLocalDate(new Date()));
   const [stats, setStats] = useState(emptyStats);
   const queueFlushInFlightRef = useRef(false);
+  const statsRequestIdRef = useRef(0);
+  const statsRangeRef = useRef(statsRange);
+  const statsCursorRef = useRef(statsCursor);
 
   const setQueueFromStorage = useCallback(() => {
     const queue = readSessionQueue();
@@ -355,15 +358,17 @@ export default function App() {
     setSessions(sessionData.sessions);
   }, []);
 
-  const refreshStatsData = useCallback(
-    async (rangeOverride, cursorOverride) => {
-      const range = rangeOverride || statsRange;
-      const cursor = cursorOverride || statsCursor;
-      const statsData = await api.stats(range, cursor);
+  const refreshStatsData = useCallback(async (rangeOverride, cursorOverride) => {
+    const range = rangeOverride ?? statsRangeRef.current;
+    const cursor = cursorOverride ?? statsCursorRef.current;
+    const requestId = statsRequestIdRef.current + 1;
+    statsRequestIdRef.current = requestId;
+    const statsData = await api.stats(range, cursor);
+    if (statsRequestIdRef.current === requestId) {
       setStats(statsData);
-    },
-    [statsRange, statsCursor]
-  );
+    }
+    return statsData;
+  }, []);
 
   const flushSessionQueue = useCallback(
     async ({ manual = false } = {}) => {
@@ -490,6 +495,14 @@ export default function App() {
   }, [setQueueFromStorage]);
 
   useEffect(() => {
+    statsRangeRef.current = statsRange;
+  }, [statsRange]);
+
+  useEffect(() => {
+    statsCursorRef.current = statsCursor;
+  }, [statsCursor]);
+
+  useEffect(() => {
     if (syncStatus !== 'Saved sessions synced.') return undefined;
     const id = window.setTimeout(() => setSyncStatus(''), 2200);
     return () => window.clearTimeout(id);
@@ -504,7 +517,7 @@ export default function App() {
 
   useEffect(() => {
     if (!user) return;
-    refreshStatsData().catch((e) => handleError(e));
+    refreshStatsData(statsRange, statsCursor).catch((e) => handleError(e));
   }, [user, statsRange, statsCursor, refreshStatsData, handleError]);
 
   useEffect(() => {
@@ -737,6 +750,17 @@ export default function App() {
       await Promise.all([refreshCollections(), refreshStatsData()]);
     } catch (e) {
       handleError(e);
+      throw e;
+    }
+  };
+
+  const deleteSession = async (id) => {
+    try {
+      await api.deleteSession(id);
+      await Promise.all([refreshCollections(), refreshStatsData()]);
+    } catch (e) {
+      handleError(e);
+      throw e;
     }
   };
 
@@ -929,6 +953,12 @@ export default function App() {
     });
   };
 
+  const handleRangeChange = (nextRange) => {
+    if (!['week', 'month', 'year'].includes(nextRange)) return;
+    setStatsRange(nextRange);
+    refreshStatsData(nextRange, statsCursorRef.current).catch((e) => handleError(e));
+  };
+
   const formatDateTime = useMemo(() => {
     const locale = getDateLocale(preferences);
     const options = {
@@ -1019,7 +1049,7 @@ export default function App() {
         <StatsCard
           stats={stats}
           statsRange={statsRange}
-          onRangeChange={setStatsRange}
+          onRangeChange={handleRangeChange}
           onPreviousPeriod={() => shiftPeriod(-1)}
           onNextPeriod={() => {
             if (!stats.isCurrentPeriod) shiftPeriod(1);
@@ -1030,7 +1060,7 @@ export default function App() {
 
         <SubjectStatsCard stats={stats} colorPalette={SUBJECT_COLOR_PALETTE} />
 
-        <SessionList sessions={sessions} onSave={saveSession} formatDateTime={formatDateTime} />
+        <SessionList sessions={sessions} onSave={saveSession} onDelete={deleteSession} formatDateTime={formatDateTime} />
       </div>
 
       <button

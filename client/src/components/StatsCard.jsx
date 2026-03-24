@@ -4,6 +4,15 @@ function formatHours(totalSeconds) {
   return `${(totalSeconds / 3600).toFixed(1)}h`;
 }
 
+function formatDurationDetailed(totalSeconds) {
+  const safeSeconds = Math.max(0, Math.floor(Number(totalSeconds) || 0));
+  const hours = Math.floor(safeSeconds / 3600);
+  const minutes = Math.floor((safeSeconds % 3600) / 60);
+  if (hours <= 0) return `${minutes}m`;
+  if (minutes <= 0) return `${hours}h`;
+  return `${hours}h ${minutes}m`;
+}
+
 function formatAxisTime(totalSeconds) {
   const safe = Math.max(0, Number(totalSeconds) || 0);
   if (safe === 0) return '0m';
@@ -195,7 +204,7 @@ export default function StatsCard({
                                     height: `${segmentHeight}%`,
                                     backgroundColor: colorPalette?.[segment.color] || 'var(--accent)',
                                   }}
-                                  title={`${bar.label}: ${segment.subject} ${formatHours(segment.totalSeconds)}`}
+                                  title={`${bar.label}: ${segment.subject} ${formatDurationDetailed(segment.totalSeconds)}`}
                                 />
                               );
                             })}
@@ -204,7 +213,7 @@ export default function StatsCard({
                           <div
                             className="w-full rounded bg-[var(--accent)]"
                             style={{ height: `${barHeight}%` }}
-                            title={`${bar.label}: ${formatHours(value)}`}
+                            title={`${bar.label}: ${formatDurationDetailed(value)}`}
                           />
                         ) : null}
                       </div>
